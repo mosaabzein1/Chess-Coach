@@ -156,17 +156,20 @@ Return ONLY a JSON object with this exact structure (no markdown, no preamble):
 
 Include 3-6 key moments. Be specific about move numbers. Use types: blunder, mistake, inaccuracy, missed_tactic, good_move, brilliant.`;
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${state.apiKey}`,
+    },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'gpt-4o-mini',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     })
   });
   const data = await res.json();
-  const text = (data.content || []).map(b => b.text || '').join('');
+  const text = data.choices?.[0]?.message?.content || '';
   const clean = text.replace(/```json|```/g, '').trim();
   const analysis = JSON.parse(clean);
   state.analysisCache[game.id] = analysis;
@@ -550,4 +553,3 @@ window.pollNow = pollNow;
 window.requestNotifAndStart = requestNotifAndStart;
 
 document.addEventListener('DOMContentLoaded', boot);
-
