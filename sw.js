@@ -1,5 +1,5 @@
 const CACHE_NAME = 'chess-coach-v1';
-const ASSETS = ['/', '/index.html', '/app.js', '/manifest.json'];
+const ASSETS = ['./index.html', './app.js', './manifest.json'];
 
 // ── Install: cache shell ──────────────────────────────────────────────────────
 self.addEventListener('install', e => {
