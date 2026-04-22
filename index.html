@@ -513,6 +513,27 @@
     .nav-btn.active .nav-label { color: var(--gold); }
     .nav-btn.active .nav-icon { filter: drop-shadow(0 0 6px var(--gold)88); }
 
+
+    /* ── Chat ────────────────────────────────────────── */
+    .chat-empty { text-align: center; color: var(--text3); font-size: 13px; padding: 40px 20px; }
+    .chat-bubble { max-width: 85%; display: flex; flex-direction: column; gap: 4px; }
+    .chat-bubble.user { align-self: flex-end; }
+    .chat-bubble.assistant { align-self: flex-start; }
+    .chat-bubble-label { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }
+    .chat-bubble.user .chat-bubble-label { color: var(--gold); text-align: right; }
+    .chat-bubble.assistant .chat-bubble-label { color: var(--text3); }
+    .chat-bubble-text {
+      padding: 10px 13px; border-radius: 14px;
+      font-size: 13px; line-height: 1.6;
+    }
+    .chat-bubble.user .chat-bubble-text {
+      background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+      color: #0a0a10; border-radius: 14px 14px 4px 14px;
+    }
+    .chat-bubble.assistant .chat-bubble-text {
+      background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 14px 14px 14px 4px;
+    }
     /* ── Scrollbar globally ───────────────────────────── */
     * { -ms-overflow-style: none; scrollbar-width: none; }
 
