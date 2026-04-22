@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#c9a96e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ChessCoach">
+  <meta name="description" content="Live AI coaching for your Chess.com games">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>Chess Coach AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset & Base ─────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold: #c9a96e;
+      --gold-dim: #8b6914;
+      --gold-glow: #c9a96e22;
+      --bg: #080810;
+      --bg2: #0e0e1a;
+      --bg3: #14141f;
+      --surface: #ffffff07;
+      --surface2: #ffffff0d;
+      --border: #ffffff0f;
+      --border2: #ffffff18;
+      --text: #e8e0d0;
+      --text2: #9090a8;
+      --text3: #55556a;
+      --win: #4ade80;
+      --loss: #f87171;
+      --draw: #8a8a9a;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bot: env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Sora', sans-serif;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* ── App Shell ────────────────────────────────────── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      max-width: 430px;
+      margin: 0 auto;
+      position: relative;
+      background: var(--bg);
+    }
+
+    /* ── Screens ──────────────────────────────────────── */
+    .screen { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .screen.active { display: flex; }
+
+    /* ── Top bar ──────────────────────────────────────── */
+    .topbar {
+      padding: calc(var(--safe-top) + 14px) 18px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #0a0a14 0%, var(--bg) 100%);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 5;
+    }
+
+    .topbar-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--gold), #f0d898);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .topbar-sub {
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .poll-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text3);
+    }
+
+    #poll-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--win);
+      transition: background 0.3s;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* ── New game banner ──────────────────────────────── */
+    #new-game-banner {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 18px;
+      background: linear-gradient(135deg, var(--gold)18, var(--gold-dim)08);
+      border-bottom: 1px solid var(--gold)44;
+      cursor: pointer;
+      animation: slideDown 0.3s ease;
+    }
+    @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: none; opacity: 1; } }
+    #banner-msg { font-size: 12px; color: var(--gold); font-weight: 600; flex: 1; }
+    #banner-close { color: var(--text3); font-size: 16px; }
+
+    /* ── Game list ────────────────────────────────────── */
+    #games-status {
+      padding: 10px 18px 6px;
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    #game-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 12px 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #game-list::-webkit-scrollbar { display: none; }
+
+    .game-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 12px;
+      margin-bottom: 6px;
+      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .game-row:active, .game-row.active {
+      background: var(--gold-glow);
+      border-color: var(--gold)44;
+    }
+
+    .game-row-left { display: flex; align-items: center; gap: 10px; }
+    .game-row-right { display: flex; align-items: center; gap: 8px; }
+
+    .outcome-badge {
+      width: 26px; height: 26px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800;
+      border: 1.5px solid;
+      flex-shrink: 0;
+    }
+
+    .game-opp { font-size: 13px; font-weight: 600; color: var(--text); }
+    .game-meta { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+    .grade-chip {
+      font-family: 'Playfair Display', serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .elo-diff { font-size: 11px; color: var(--text3); }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text3);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    /* ── Analysis screen ──────────────────────────────── */
+    #screen-analysis { overflow: hidden; }
+
+    .analysis-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: calc(var(--safe-top) + 14px) 18px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+
+    .back-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--gold);
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .game-title { flex: 1; min-width: 0; }
+    .game-title-main { display: block; font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .game-title-sub { display: block; font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+    .analysis-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .analysis-content::-webkit-scrollbar { display: none; }
+
+    /* Loading state */
+    .loading-state {
+      text-align: center;
+      padding: 60px 20px;
+    }
+    .spinner {
+      font-size: 36px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+      display: inline-block;
+    }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .loading-text { font-family: 'Playfair Display', serif; font-size: 17px; color: var(--gold); margin-bottom: 8px; }
+    .loading-sub { font-size: 12px; color: var(--text3); line-height: 1.6; margin-bottom: 24px; }
+    .loading-dots { display: flex; justify-content: center; gap: 6px; }
+    .loading-dots span {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--gold);
+      animation: dotpulse 1.2s ease-in-out infinite;
+    }
+    .loading-dots span:nth-child(2) { animation-delay: 0.3s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.6s; }
+    @keyframes dotpulse { 0%,100%{opacity:0.2;transform:scale(0.7)} 50%{opacity:1;transform:scale(1.2)} }
+
+    .error-state { text-align: center; padding: 40px 20px; color: var(--text3); font-size: 13px; }
+    .retry-btn { margin-top: 16px; padding: 10px 24px; background: var(--surface2); border: 1px solid var(--border2); color: var(--gold); border-radius: 8px; font-size: 13px; cursor: pointer; font-family: inherit; }
+
+    /* Grade hero */
+    .grade-hero {
+      text-align: center;
+      padding: 20px 8px 16px;
+      margin-bottom: 16px;
+    }
+    .overall-grade {
+      font-family: 'Playfair Display', serif;
+      font-size: 52px;
+      font-weight: 900;
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 14px;
+      border: 2px solid;
+      background: var(--bg2);
+    }
+    .summary-text { font-size: 13px; color: var(--text2); line-height: 1.7; }
+
+    /* Phase grid */
+    .phase-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .phase-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .phase-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .phase-name { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: capitalize; letter-spacing: 0.3px; }
+    .phase-grade { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; }
+    .phase-comment { font-size: 10px; color: var(--text3); line-height: 1.4; }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 14px;
+      background: var(--bg2);
+      padding: 4px;
+      border-radius: 10px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 8px 4px;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      background: transparent;
+      color: var(--text3);
+      transition: all 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tab-btn.active { background: var(--surface2); color: var(--gold); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Moment cards */
+    .moment-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px;
+      margin-bottom: 10px;
+    }
+    .moment-top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
+    .move-num {
+      font-size: 11px; font-weight: 700; color: var(--gold);
+      background: var(--gold-glow); padding: 2px 8px; border-radius: 6px;
+    }
+    .type-badge {
+      font-size: 11px; font-weight: 600;
+      padding: 2px 8px; border-radius: 20px; border: 1px solid;
+    }
+    .concept-tag { font-size: 10px; color: var(--text3); margin-left: auto; }
+
+    .move-pair { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .move-box {
+      flex: 1; padding: 8px; border-radius: 8px;
+      border: 1px solid;
+    }
+    .move-box.played { background: #f8717108; border-color: #f8717122; }
+    .move-box.better { background: #4ade8008; border-color: #4ade8022; }
+    .move-box-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+    .move-box.played .move-box-label { color: #f87171; }
+    .move-box.better .move-box-label { color: #4ade80; }
+    .move-box-move { font-size: 18px; font-weight: 800; font-family: 'Courier New', monospace; }
+    .move-box.played .move-box-move { color: #e0c0c0; }
+    .move-box.better .move-box-move { color: #c0e0c0; }
+    .move-arrow { color: var(--text3); font-size: 16px; flex-shrink: 0; }
+    .moment-explanation { font-size: 12px; color: var(--text3); line-height: 1.6; }
+
+    /* Lessons */
+    .patterns-section { margin-bottom: 14px; }
+    .section-label { font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 1px; margin-bottom: 8px; }
+    .pattern-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pattern-chip {
+      font-size: 11px; padding: 4px 10px; border-radius: 20px;
+      background: #a78bfa15; color: #a78bfa; border: 1px solid #a78bfa30;
+    }
+    .lesson-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px;
+      margin-bottom: 10px;
+    }
+    .lesson-title { font-size: 13px; font-weight: 700; color: var(--gold); margin-bottom: 6px; }
+    .lesson-detail { font-size: 12px; color: var(--text3); line-height: 1.6; }
+
+    /* Verdict */
+    .verdict-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .verdict-col { border-radius: 12px; padding: 12px; }
+    .verdict-col.strengths { background: #4ade8008; border: 1px solid #4ade8020; }
+    .verdict-col.weaknesses { background: #f8717108; border: 1px solid #f8717120; }
+    .verdict-label { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .verdict-col.strengths .verdict-label { color: #4ade80; }
+    .verdict-col.weaknesses .verdict-label { color: #f87171; }
+    .verdict-item { font-size: 11px; color: var(--text3); margin-bottom: 5px; line-height: 1.4; }
+    .coach-message {
+      background: linear-gradient(135deg, var(--gold)0d, var(--gold-dim)06);
+      border: 1px solid var(--gold)22;
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .coach-label { font-size: 10px; font-weight: 700; color: var(--gold); letter-spacing: 0.5px; margin-bottom: 6px; }
+    .coach-text { font-size: 13px; color: #c8b89a; line-height: 1.7; font-style: italic; }
+
+    /* ── Settings screen ──────────────────────────────── */
+    #screen-settings {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #screen-settings::-webkit-scrollbar { display: none; }
+
+    .settings-topbar {
+      padding: calc(var(--safe-top) + 14px) 18px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .settings-title { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 900; background: linear-gradient(135deg, var(--gold), #f0d898); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+    .settings-body { padding: 20px 18px; }
+
+    .settings-section { margin-bottom: 28px; }
+    .settings-section-title {
+      font-size: 11px; font-weight: 700; color: var(--text3);
+      letter-spacing: 1px; text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .input-group { margin-bottom: 12px; }
+    .input-label { font-size: 12px; color: var(--text2); margin-bottom: 6px; display: block; font-weight: 500; }
+    .input-field {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--bg2);
+      border: 1.5px solid var(--border2);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+    .input-field:focus { outline: none; border-color: var(--gold)66; }
+    .input-field::placeholder { color: var(--text3); }
+    .input-hint { font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.5; }
+
+    .primary-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+      border: none;
+      border-radius: 12px;
+      color: #0a0a10;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.2s;
+    }
+    .primary-btn:active { opacity: 0.85; }
+
+    .secondary-btn {
+      width: 100%;
+      padding: 13px;
+      background: var(--surface2);
+      border: 1.5px solid var(--border2);
+      border-radius: 12px;
+      color: var(--gold);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      margin-top: 8px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #setup-status { font-size: 13px; text-align: center; margin-top: 10px; min-height: 18px; }
+
+    .info-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .info-card p { font-size: 12px; color: var(--text3); line-height: 1.7; margin-bottom: 8px; }
+    .info-card p:last-child { margin-bottom: 0; }
+    .info-card strong { color: var(--gold); }
+
+    /* ── Bottom nav ───────────────────────────────────── */
+    .bottom-nav {
+      display: flex;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      padding: 8px 0 calc(var(--safe-bot) + 8px);
+      flex-shrink: 0;
+    }
+
+    .nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 0;
+      cursor: pointer;
+      border: none;
+      background: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.2s;
+    }
+
+    .nav-icon { font-size: 20px; }
+    .nav-label { font-size: 10px; font-weight: 600; color: var(--text3); letter-spacing: 0.3px; }
+    .nav-btn.active .nav-label { color: var(--gold); }
+    .nav-btn.active .nav-icon { filter: drop-shadow(0 0 6px var(--gold)88); }
+
+    /* ── Scrollbar globally ───────────────────────────── */
+    * { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* ── Install prompt ───────────────────────────────── */
+    #install-banner {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #1a1810, var(--bg));
+      border-bottom: 1px solid var(--gold)22;
+      font-size: 12px;
+    }
+    #install-banner .install-text { flex: 1; color: var(--text2); }
+    #install-banner button {
+      padding: 6px 14px;
+      background: var(--gold-glow);
+      border: 1px solid var(--gold)44;
+      border-radius: 8px;
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── New game banner ── -->
+  <div id="new-game-banner">
+    <span style="font-size:18px">♟</span>
+    <span id="banner-msg"></span>
+    <span id="banner-close">×</span>
+  </div>
+
+  <!-- ── Install banner (shown when installable) ── -->
+  <div id="install-banner">
+    <span style="font-size:18px">📲</span>
+    <span class="install-text">Add Chess Coach to your home screen for the full experience</span>
+    <button id="install-btn">Install</button>
+  </div>
+
+  <!-- ══ SCREEN: Games ══ -->
+  <div id="screen-games" class="screen active">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">♟ Chess Coach</div>
+        <div class="topbar-sub">Live AI Analysis</div>
+      </div>
+      <div class="poll-indicator">
+        <div id="poll-dot"></div>
+        <span id="poll-label">watching</span>
+      </div>
+    </div>
+
+    <div id="games-status">Loading your games…</div>
+    <div id="game-list"></div>
+  </div>
+
+  <!-- ══ SCREEN: Analysis ══ -->
+  <div id="screen-analysis" class="screen">
+    <div id="analysis-panel" style="display:flex;flex-direction:column;height:100%;">
+      <!-- filled dynamically -->
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: Settings ══ -->
+  <div id="screen-settings" class="screen">
+    <div class="settings-topbar">
+      <div class="settings-title">⚙ Settings</div>
+    </div>
+    <div class="settings-body">
+
+      <div class="settings-section">
+        <div class="settings-section-title">Your Account</div>
+        <div class="input-group">
+          <label class="input-label" for="setup-username">Chess.com Username</label>
+          <input id="setup-username" class="input-field" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="e.g. hikaru">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="setup-apikey">
+            Anthropic API Key
+            <span style="color:var(--text3);font-weight:400"> (for Claude analysis)</span>
+          </label>
+          <input id="setup-apikey" class="input-field" type="password" autocomplete="off" placeholder="sk-ant-...">
+          <div class="input-hint">
+            Get a free key at <strong>console.anthropic.com</strong> → API Keys. Your key is stored only on this device.
+          </div>
+        </div>
+        <button class="primary-btn" onclick="saveSetup()">Save & Load Games</button>
+        <div id="setup-status"></div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Notifications</div>
+        <div class="info-card" style="margin-bottom:10px">
+          <p>Enable notifications so Chess Coach can alert you <strong>the moment a new game is detected</strong> — even when the app is in the background.</p>
+        </div>
+        <button id="notif-btn" class="secondary-btn" onclick="requestNotifAndStart()">🔔 Enable Notifications</button>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">How it works</div>
+        <div class="info-card">
+          <p>♟ Chess Coach checks your Chess.com profile <strong>every 30 seconds</strong> while the app is open.</p>
+          <p>🔔 When a new finished game is detected, it <strong>automatically sends it to Claude</strong> for deep analysis.</p>
+          <p>📚 You'll get a full breakdown: move-by-move mistakes, better alternatives, technique lessons, and an overall coaching report.</p>
+          <p>✓ All analyses are <strong>saved on your device</strong> — no re-analysis needed when you revisit games.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Bottom Nav ── -->
+  <nav class="bottom-nav">
+    <button id="nav-games" class="nav-btn active" onclick="showScreen('games')">
+      <span class="nav-icon">♟</span>
+      <span class="nav-label">Games</span>
+    </button>
+    <button id="nav-settings" class="nav-btn" onclick="showScreen('settings')">
+      <span class="nav-icon">⚙</span>
+      <span class="nav-label">Settings</span>
+    </button>
+  </nav>
+
+</div>
+
+<script src="app.js"></script>
+<script>
+  // ── PWA install prompt ──────────────────────────────
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('install-banner').style.display = 'flex';
+    document.getElementById('install-btn').onclick = async () => {
+      document.getElementById('install-banner').style.display = 'none';
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+    };
+  });
+  window.addEventListener('appinstalled', () => {
+    document.getElementById('install-banner').style.display = 'none';
+  });
+</script>
+</body>
+</html>
