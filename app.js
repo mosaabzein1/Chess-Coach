@@ -169,9 +169,20 @@ Include 3-6 key moments. Be specific about move numbers. Use types: blunder, mis
     })
   });
   const data = await res.json();
+  console.log('Groq response:', JSON.stringify(data));
+  if (data.error) throw new Error('Groq error: ' + data.error.message);
   const text = data.choices?.[0]?.message?.content || '';
+  if (!text) throw new Error('Empty response from Groq');
   const clean = text.replace(/```json|```/g, '').trim();
-  const analysis = JSON.parse(clean);
+  let analysis;
+  try {
+    analysis = JSON.parse(clean);
+  } catch(e) {
+    // Try to extract JSON from response
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (match) analysis = JSON.parse(match[0]);
+    else throw new Error('Could not parse response: ' + clean.substring(0, 100));
+  }
   state.analysisCache[game.id] = analysis;
   await saveAnalysisCache();
   return analysis;
@@ -333,7 +344,8 @@ async function runAnalysis(game) {
   } catch (err) {
     content.innerHTML = `<div class="error-state">
       <div style="font-size:32px;margin-bottom:12px">⚠️</div>
-      <div>Analysis failed. Check your API key in Settings.</div>
+      <div>Analysis failed: ${err.message}</div>
+      <div style="font-size:11px;margin-top:8px;color:#555">Key starts with: ${state.apiKey ? state.apiKey.substring(0,8)+'...' : 'NOT SET'}</div>
       <button class="retry-btn" onclick="runAnalysis(state.selected)">Retry</button>
     </div>`;
   }
