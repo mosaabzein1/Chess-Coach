@@ -156,14 +156,14 @@ Return ONLY a JSON object with this exact structure (no markdown, no preamble):
 
 Include 3-6 key moments. Be specific about move numbers. Use types: blunder, mistake, inaccuracy, missed_tactic, good_move, brilliant.`;
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${state.apiKey}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: 'llama-3.3-70b-versatile',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     })
