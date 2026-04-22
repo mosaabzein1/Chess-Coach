@@ -16,6 +16,8 @@ const state = {
   pollingInterval: null,
   polling: false,
   notifGranted: false,
+  chatHistory: [],
+  chatGame: null,
 };
 
 // ── Settings persistence (Cache API as KV store) ─────────
@@ -254,6 +256,103 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+
+// ── Chat ─────────────────────────────────────────────────
+async function sendChatMessage(userMsg) {
+  if (!userMsg.trim() || !state.selected) return;
+
+  // If new game, reset history and include game context
+  if (state.chatGame !== state.selected.id) {
+    state.chatGame = state.selected.id;
+    state.chatHistory = [{
+      role: 'system',
+      content: `You are a chess coach. The user is asking about this specific game they played.
+PGN: ${state.selected.pgn}
+They played as ${state.selected.isWhite ? 'White' : 'Black'} against ${state.selected.opponent}.
+Result: ${state.selected.result}. Be concise, specific, and helpful. Reference actual moves and move numbers.`
+    }];
+  }
+
+  state.chatHistory.push({ role: 'user', content: userMsg });
+  renderChatMessages();
+
+  const sendBtn = document.getElementById('chat-send');
+  const input = document.getElementById('chat-input');
+  if (sendBtn) sendBtn.disabled = true;
+  if (input) input.disabled = true;
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${state.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 500,
+        messages: state.chatHistory,
+      })
+    });
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content || 'Sorry, I could not respond.';
+    state.chatHistory.push({ role: 'assistant', content: reply });
+  } catch(e) {
+    state.chatHistory.push({ role: 'assistant', content: 'Error: ' + e.message });
+  }
+
+  renderChatMessages();
+  if (sendBtn) sendBtn.disabled = false;
+  if (input) { input.disabled = false; input.focus(); }
+}
+
+function renderChatMessages() {
+  const box = document.getElementById('chat-messages');
+  if (!box) return;
+  const msgs = state.chatHistory.filter(m => m.role !== 'system');
+  if (!msgs.length) {
+    box.innerHTML = '<div class="chat-empty">Ask me anything about this game…</div>';
+    return;
+  }
+  box.innerHTML = msgs.map(m => `
+    <div class="chat-bubble ${m.role}">
+      <div class="chat-bubble-label">${m.role === 'user' ? 'You' : '🤖 Coach'}</div>
+      <div class="chat-bubble-text">${m.content.replace(/\n/g, '<br>')}</div>
+    </div>
+  `).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+function openChat() {
+  document.getElementById('chat-overlay').style.display = 'flex';
+  // Reset if different game
+  if (state.chatGame !== state.selected?.id) {
+    state.chatHistory = [];
+    state.chatGame = null;
+  }
+  renderChatMessages();
+  setTimeout(() => document.getElementById('chat-input')?.focus(), 100);
+}
+
+function closeChat() {
+  document.getElementById('chat-overlay').style.display = 'none';
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if (msg) { input.value = ''; sendChatMessage(msg); }
+  }
+}
+
+function handleChatSend() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (msg) { input.value = ''; sendChatMessage(msg); }
+}
+
 // ════════════════════════════════════════════════════════
 //  UI RENDERING
 // ════════════════════════════════════════════════════════
@@ -326,6 +425,23 @@ function renderAnalysisShell(game) {
         <span class="game-title-sub">${game.timeClass} · You played ${game.isWhite ? 'White' : 'Black'} · <span style="color:${outcomeColor}">${outcomeLabel}</span></span>
       </div>
     </div>
+    <div id="chat-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#080810;z-index:100;flex-direction:column;max-width:430px;margin:0 auto;">
+      <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #ffffff0f;flex-shrink:0;">
+        <button onclick="closeChat()" style="background:#ffffff0d;border:1px solid #ffffff18;color:#c9a96e;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">← Back</button>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#e8e0d0;">Chat with Coach</div>
+          <div style="font-size:11px;color:#55556a;margin-top:2px;">Ask anything about this game</div>
+        </div>
+        <button onclick="state.chatHistory=[];state.chatGame=null;renderChatMessages();" style="margin-left:auto;background:transparent;border:none;color:#55556a;font-size:12px;cursor:pointer;font-family:inherit;">Clear</button>
+      </div>
+      <div id="chat-messages" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;">
+        <div class="chat-empty">Ask me anything about this game…</div>
+      </div>
+      <div style="padding:12px;border-top:1px solid #ffffff0f;display:flex;gap:8px;flex-shrink:0;">
+        <input id="chat-input" onkeydown="handleChatKey(event)" placeholder="e.g. Why did I lose the middlegame?" style="flex:1;padding:11px 14px;background:#0e0e1a;border:1.5px solid #ffffff18;border-radius:10px;color:#e8e0d0;font-size:14px;font-family:inherit;" />
+        <button id="chat-send" onclick="handleChatSend()" style="padding:11px 16px;background:linear-gradient(135deg,#c9a96e,#8b6914);border:none;border-radius:10px;color:#080810;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;">↑</button>
+      </div>
+    </div>
     <div id="analysis-content" class="analysis-content">
       <div class="loading-state">
         <div class="spinner">♟</div>
@@ -393,6 +509,11 @@ function renderAnalysisResult(game, a) {
       <button class="tab-btn" onclick="switchTab('lessons', this)">Lessons</button>
       <button class="tab-btn" onclick="switchTab('verdict', this)">Verdict</button>
     </div>
+
+    <!-- Chat button -->
+    <button onclick="openChat()" style="width:100%;padding:12px;margin-bottom:14px;background:#c9a96e12;border:1.5px solid #c9a96e44;border-radius:12px;color:#c9a96e;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
+      💬 Chat with Coach about this game
+    </button>
 
     <!-- Moments tab -->
     <div id="tab-moments" class="tab-content active">
@@ -563,5 +684,10 @@ window.showScreen = showScreen;
 window.saveSetup = saveSetup;
 window.pollNow = pollNow;
 window.requestNotifAndStart = requestNotifAndStart;
+window.openChat = openChat;
+window.closeChat = closeChat;
+window.handleChatKey = handleChatKey;
+window.handleChatSend = handleChatSend;
+window.renderChatMessages = renderChatMessages;
 
 document.addEventListener('DOMContentLoaded', boot);
